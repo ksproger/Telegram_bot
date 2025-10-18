@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: cyberinvestigator-bot
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python bot.py
+    envVars:
+      - key: BOT_TOKEN
+        value: 8269400259:AAEgEN97vtWglpOKel-tYigtUIV4LnWjT7A
+      - key: SHODAN_API_KEY
+        value: ISrEKUQuaw8lvvbttvnjvCBReXp5XzW9
+      - key: VIRUSTOTAL_API_KEY
+        value: 6dea94e052cf67a77b619a411e0782b3c37d818085109e48e18f17759dfe83a9
