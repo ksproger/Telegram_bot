@@ -52,6 +52,7 @@ class TelegramBot:
         self.application.add_handler(CommandHandler("domain", self.domain_command))
         self.application.add_handler(CommandHandler("ip", self.ip_command))
         self.application.add_handler(CommandHandler("email", self.email_command))
+        self.application.add_handler(CommandHandler("phone", self.phone_command))
         
         self.application.add_handler(CallbackQueryHandler(self.button_handler))
         self.application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_message))
@@ -68,12 +69,14 @@ class TelegramBot:
 /domain <адрес> - Разведка домена
 /ip <адрес> - Разведка IP адреса  
 /email <адрес> - Разведка email
+/phone <номер> - Разведка телефона
 /help - Справка по использованию
 
 *Примеры:*
 /domain google.com
 /ip 8.8.8.8
 /email test@example.com
+/phone +79123456789
 
 ⚠️ *Внимание:* Используйте инструмент только в законных целях!
         """
@@ -82,6 +85,7 @@ class TelegramBot:
             [InlineKeyboardButton("🔍 Разведка домена", callback_data="domain_scan")],
             [InlineKeyboardButton("🌐 Разведка IP", callback_data="ip_scan")],
             [InlineKeyboardButton("📧 Разведка email", callback_data="email_scan")],
+            [InlineKeyboardButton("📞 Разведка телефона", callback_data="phone_scan")],
             [InlineKeyboardButton("📖 Помощь", callback_data="help")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
@@ -121,10 +125,23 @@ class TelegramBot:
 • Gravatar
 • Социальные профили
 
+📞 *Разведка телефона*
+/phone <номер>
+• Информация об операторе
+• Геолокация
+• Социальные профили
+• Проверка на спам
+
 *Примеры использования:*
 /domain google.com
 /ip 8.8.8.8  
 /email test@example.com
+/phone +79123456789
+
+*Поддерживаемые операторы:*
+• Россия: MTS, Beeline, MegaFon, Tele2, Yota
+• Армения: Ucom, Viva-MTS, Team Telecom
+• Международные операторы
 
 ⚠️ *Важно:* Используйте инструмент ответственно и в рамках законодательства.
         """
@@ -163,6 +180,17 @@ class TelegramBot:
         email = context.args[0]
         await self.perform_email_scan(update, email)
 
+    async def phone_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Обработчик команды /phone"""
+        if not context.args:
+            await update.message.reply_text(
+                "❌ Укажите номер телефона для исследования\nПример: /phone +79123456789"
+            )
+            return
+
+        phone = context.args[0]
+        await self.perform_phone_scan(update, phone)
+
     async def button_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Обработчик нажатий кнопок"""
         query = update.callback_query
@@ -186,6 +214,11 @@ class TelegramBot:
             await query.edit_message_text(
                 "📧 Введите email для исследования:\nПример: test@example.com"
             )
+        elif data == "phone_scan":
+            self.user_sessions[user_id] = "waiting_phone"
+            await query.edit_message_text(
+                "📞 Введите номер телефона для исследования:\nПример: +79123456789"
+            )
         elif data == "help":
             await self.help_command(update, context)
 
@@ -204,6 +237,8 @@ class TelegramBot:
                 await self.perform_ip_scan(update, text)
             elif session_type == "waiting_email":
                 await self.perform_email_scan(update, text)
+            elif session_type == "waiting_phone":
+                await self.perform_phone_scan(update, text)
         else:
             await update.message.reply_text(
                 "🤔 Используйте команды или кнопки для начала работы.\n"
@@ -214,7 +249,7 @@ class TelegramBot:
         """Выполнение сканирования домена"""
         try:
             # Валидация домена
-            if not self.is_valid_domain(domain):
+            if not investigator.validate_domain(domain):
                 await self.send_message(update, "❌ Неверный формат домена")
                 return
 
@@ -236,7 +271,7 @@ class TelegramBot:
         """Выполнение сканирования IP"""
         try:
             # Валидация IP
-            if not self.is_valid_ip(ip_address):
+            if not investigator.validate_ip(ip_address):
                 await self.send_message(update, "❌ Неверный формат IP адреса")
                 return
 
@@ -258,7 +293,7 @@ class TelegramBot:
         """Выполнение сканирования email"""
         try:
             # Валидация email
-            if not self.is_valid_email(email):
+            if not investigator.validate_email(email):
                 await self.send_message(update, "❌ Неверный формат email")
                 return
 
@@ -276,6 +311,28 @@ class TelegramBot:
             logger.error(f"Email scan error: {e}")
             await self.send_message(update, f"❌ Ошибка при сканировании email: {str(e)}")
 
+    async def perform_phone_scan(self, update: Update, phone: str):
+        """Выполнение сканирования телефона"""
+        try:
+            # Валидация телефона
+            if not investigator.validate_phone(phone):
+                await self.send_message(update, "❌ Неверный формат номера телефона")
+                return
+
+            message = await self.send_message(update, "📞 *Начинаем разведку номера...*\nЭто может занять несколько секунд ⏳")
+
+            # Выполнение сканирования
+            results = await asyncio.get_event_loop().run_in_executor(
+                None, investigator.phone_investigation, phone
+            )
+
+            # Форматирование и отправка результатов
+            await self.send_phone_results(update, results, message.message_id)
+
+        except Exception as e:
+            logger.error(f"Phone scan error: {e}")
+            await self.send_message(update, f"❌ Ошибка при сканировании номера: {str(e)}")
+
     async def send_domain_results(self, update: Update, results: dict, original_message_id: int):
         """Отправка результатов сканирования домена"""
         try:
@@ -292,14 +349,14 @@ class TelegramBot:
                 if whois_info.get('creation_date'):
                     text += f"• Дата создания: `{whois_info['creation_date']}`\n"
                 if whois_info.get('name_servers'):
-                    text += f"• NS серверы: `{', '.join(whois_info['name_servers'])}`\n"
+                    text += f"• NS серверы: `{', '.join(whois_info['name_servers'][:3])}`\n"
 
             # DNS записи
             if results.get('dns_records'):
                 text += "\n🌐 *DNS записи:*\n"
                 for record_type, records in results['dns_records'].items():
                     if records:
-                        text += f"• {record_type}: `{', '.join(records[:3])}`\n"
+                        text += f"• {record_type}: `{', '.join(records[:2])}`\n"
 
             # Поддомены
             if results.get('subdomains'):
@@ -326,7 +383,6 @@ class TelegramBot:
             # Кнопки для дополнительных действий
             keyboard = [
                 [InlineKeyboardButton("🔄 Новый запрос", callback_data="domain_scan")],
-                [InlineKeyboardButton("📊 Полный отчет", callback_data=f"full_report_{domain}")]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
 
@@ -398,6 +454,8 @@ class TelegramBot:
                 text += f"\n🔓 *Утечки данных ({len(results['breaches'])}):*\n"
                 for breach in results['breaches'][:3]:
                     text += f"• `{breach}`\n"
+            else:
+                text += f"\n🔓 *Утечки данных:* не обнаружено\n"
 
             text += f"\n🕐 *Время сканирования:* `{results['timestamp']}`"
 
@@ -408,6 +466,55 @@ class TelegramBot:
 
         except Exception as e:
             logger.error(f"Error sending email results: {e}")
+            await self.edit_message(update, "❌ Ошибка при форматировании результатов", original_message_id)
+
+    async def send_phone_results(self, update: Update, results: dict, original_message_id: int):
+        """Отправка результатов сканирования телефона"""
+        try:
+            phone = results['phone']
+            text = f"📞 *Результаты разведки номера:* `{phone}`\n"
+            text += "═" * 40 + "\n"
+
+            # Информация об операторе
+            if results.get('carrier_info'):
+                carrier = results['carrier_info']
+                text += "\n🏢 *Информация об операторе:*\n"
+                text += f"• Страна: `{carrier.get('country', 'Не определено')}`\n"
+                text += f"• Оператор: `{carrier.get('carrier', 'Не определено')}`\n"
+                text += f"• Тип линии: `{carrier.get('line_type', 'Не определено')}`\n"
+                text += f"• Валидность: `{'Да' if carrier.get('valid') else 'Нет'}`\n"
+
+            # Геолокация
+            if results.get('geo_info'):
+                geo = results['geo_info']
+                text += "\n🗺️ *Геолокация:*\n"
+                for key, value in geo.items():
+                    if value and value != 'Не определено':
+                        text += f"• {key}: `{value}`\n"
+
+            # Социальные профили
+            if results.get('social_profiles'):
+                text += f"\n👥 *Социальные профили ({len(results['social_profiles'])}):*\n"
+                for profile in results['social_profiles']:
+                    text += f"• `{profile}`\n"
+
+            # Информация о спаме
+            if results.get('spam_info'):
+                spam = results['spam_info']
+                text += f"\n⚠️ *Информация о спаме:*\n"
+                text += f"• Уровень риска: `{spam.get('risk_level', 'неизвестно')}`\n"
+                text += f"• Жалоб: `{spam.get('spam_reports', 0)}`\n"
+                text += f"• Репутация: `{spam.get('reputation', 'неизвестно')}`\n"
+
+            text += f"\n🕐 *Время сканирования:* `{results['timestamp']}`"
+
+            keyboard = [[InlineKeyboardButton("🔄 Новый запрос", callback_data="phone_scan")]]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+
+            await self.edit_message(update, text, original_message_id, reply_markup)
+
+        except Exception as e:
+            logger.error(f"Error sending phone results: {e}")
             await self.edit_message(update, "❌ Ошибка при форматировании результатов", original_message_id)
 
     async def send_message(self, update: Update, text: str):
@@ -429,36 +536,6 @@ class TelegramBot:
             )
         except TelegramError as e:
             logger.error(f"Error editing message: {e}")
-
-    def is_valid_domain(self, domain: str) -> bool:
-        """Проверка валидности домена"""
-        try:
-            return all([
-                '.' in domain,
-                len(domain) > 3,
-                len(domain) < 255,
-                not domain.startswith('.'),
-                not domain.endswith('.')
-            ])
-        except:
-            return False
-
-    def is_valid_ip(self, ip: str) -> bool:
-        """Проверка валидности IP адреса"""
-        try:
-            parts = ip.split('.')
-            if len(parts) != 4:
-                return False
-            return all(0 <= int(part) <= 255 for part in parts)
-        except:
-            return False
-
-    def is_valid_email(self, email: str) -> bool:
-        """Проверка валидности email"""
-        try:
-            return '@' in email and '.' in email.split('@')[1]
-        except:
-            return False
 
     def run(self):
         """Запуск бота"""
