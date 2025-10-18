@@ -1,0 +1,8 @@
+python-telegram-bot==20.7
+requests==2.31.0
+beautifulsoup4==4.12.2
+python-whois==0.8.0
+dnspython==2.4.2
+shodan==1.29.1
+urllib3==1.26.16
+aiohttp==3.8.5
