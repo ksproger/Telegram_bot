@@ -59,6 +59,17 @@ class CyberInvestigator:
         pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
         return re.match(pattern, email) is not None
 
+    def validate_phone(self, phone_number):
+        """Валидация телефонного номера"""
+        # Удаляем все нецифровые символы
+        clean_number = re.sub(r'\D', '', phone_number)
+        
+        # Проверяем длину (между 10 и 15 цифрами)
+        if len(clean_number) < 10 or len(clean_number) > 15:
+            return False
+        
+        return True
+
     def domain_investigation(self, domain):
         """Полная разведка домена"""
         print(f"\n[🔍] Начинаем разведку домена: {domain}")
@@ -435,6 +446,323 @@ class CyberInvestigator:
         
         return results
 
+    def phone_investigation(self, phone_number):
+        """Разведка по телефонному номеру"""
+        print(f"\n[📞] Начинаем разведку номера: {phone_number}")
+        
+        if not self.validate_phone(phone_number):
+            raise ValueError("Неверный формат телефонного номера")
+            
+        results = {
+            'phone': phone_number,
+            'timestamp': datetime.now().isoformat(),
+            'carrier_info': {},
+            'geo_info': {},
+            'social_profiles': [],
+            'breaches': [],
+            'spam_info': {},
+            'public_records': {},
+            'warnings': []
+        }
+        
+        # Базовая информация об операторе и геолокации
+        try:
+            print("[🏢] Определение оператора...")
+            carrier_info = self.get_carrier_info(phone_number)
+            results['carrier_info'] = carrier_info
+        except Exception as e:
+            print(f"[❌] Ошибка определения оператора: {e}")
+            results['warnings'].append(f"Ошибка оператора: {str(e)}")
+    
+        # Геолокация по номеру
+        try:
+            print("[🗺️] Определение геолокации...")
+            geo_info = self.get_phone_geo_info(phone_number)
+            results['geo_info'] = geo_info
+        except Exception as e:
+            print(f"[❌] Ошибка геолокации: {e}")
+            results['warnings'].append(f"Ошибка геолокации: {str(e)}")
+        
+        # Поиск в социальных сетях
+        try:
+            print("[👥] Поиск в социальных сетях...")
+            social_profiles = self.find_phone_social_profiles(phone_number)
+            results['social_profiles'] = social_profiles
+        except Exception as e:
+            print(f"[❌] Ошибка поиска в соцсетях: {e}")
+            results['warnings'].append(f"Ошибка соцсетей: {str(e)}")
+        
+        # Проверка на спам/мошенничество
+        try:
+            print("[⚠️] Проверка на спам...")
+            spam_check = self.check_spam_databases(phone_number)
+            results['spam_info'] = spam_check
+        except Exception as e:
+            print(f"[❌] Ошибка проверки спама: {e}")
+            results['warnings'].append(f"Ошибка проверки спама: {str(e)}")
+        
+        # Поиск в открытых базах данных
+        try:
+            print("[🔍] Поиск в открытых источниках...")
+            public_records = self.search_public_records(phone_number)
+            results['public_records'] = public_records
+        except Exception as e:
+            print(f"[❌] Ошибка поиска в открытых источниках: {e}")
+            results['warnings'].append(f"Ошибка открытых источников: {str(e)}")
+        
+        return results
+
+    def get_carrier_info(self, phone_number):
+        """Получение информации об операторе"""
+        clean_number = re.sub(r'\D', '', phone_number)
+        
+        carrier_info = {
+            'country': 'Не определено',
+            'carrier': 'Не определено',
+            'line_type': 'Не определено',
+            'valid': False
+        }
+        
+        # Определение страны по коду
+        country_info = self._detect_country_by_code(clean_number)
+        carrier_info.update(country_info)
+        
+        # Определение оператора
+        operator_info = self._detect_operator(clean_number)
+        carrier_info.update(operator_info)
+        
+        return carrier_info
+
+    def _detect_country_by_code(self, phone_number):
+        """Определение страны по коду"""
+        country_codes = {
+            '1': 'США/Канада',
+            '7': 'Россия/Казахстан',
+            '33': 'Франция',
+            '34': 'Испания',
+            '39': 'Италия',
+            '44': 'Великобритания',
+            '49': 'Германия',
+            '55': 'Бразилия',
+            '86': 'Китай',
+            '91': 'Индия',
+            '374': 'Армения'  # Добавляем Армению для Ucom
+        }
+        
+        for code, country in country_codes.items():
+            if phone_number.startswith(code):
+                return {'country': country, 'country_code': code}
+        
+        return {'country': 'Неизвестно', 'country_code': 'Неизвестно'}
+
+    def _detect_operator(self, phone_number):
+        """Определение оператора связи"""
+        # Российские операторы
+        if phone_number.startswith('7'):
+            return self._detect_russian_operator(phone_number)
+        # Армянские операторы (Ucom и другие)
+        elif phone_number.startswith('374'):
+            return self._detect_armenian_operator(phone_number)
+        # Другие страны
+        else:
+            return {'carrier': 'Международный оператор', 'line_type': 'mobile'}
+
+    def _detect_russian_operator(self, phone_number):
+        """Определение российского оператора по префиксу"""
+        operators = {
+            '7900': 'Beeline', '7901': 'Beeline', '7902': 'Beeline', '7903': 'Beeline',
+            '7904': 'Beeline', '7905': 'Beeline', '7906': 'Beeline', '7907': 'Beeline',
+            '7908': 'Beeline', '7909': 'Beeline',
+            
+            '7910': 'MTS', '7911': 'MTS', '7912': 'MTS', '7913': 'MTS', '7914': 'MTS',
+            '7915': 'MTS', '7916': 'MTS', '7917': 'MTS', '7918': 'MTS', '7919': 'MTS',
+            
+            '7920': 'MegaFon', '7921': 'MegaFon', '7922': 'MegaFon', '7923': 'MegaFon',
+            '7924': 'MegaFon', '7925': 'MegaFon', '7926': 'MegaFon', '7927': 'MegaFon',
+            '7928': 'MegaFon', '7929': 'MegaFon',
+            
+            '7930': 'Tele2', '7931': 'Tele2', '7932': 'Tele2', '7933': 'Tele2',
+            '7934': 'Tele2', '7935': 'Tele2', '7936': 'Tele2', '7937': 'Tele2',
+            '7938': 'Tele2', '7939': 'Tele2',
+            
+            '7950': 'Yota', '7951': 'Yota', '7952': 'Yota', '7953': 'Yota',
+            '7990': 'Билайн', '7991': 'Билайн', '7999': 'Билайн'
+        }
+        
+        prefix = phone_number[1:5]  # Без +7
+        operator = operators.get(prefix, 'Неизвестный оператор')
+        
+        return {
+            'carrier': operator,
+            'line_type': 'mobile',
+            'valid': True
+        }
+
+    def _detect_armenian_operator(self, phone_number):
+        """Определение армянского оператора (включая Ucom)"""
+        # Армянские коды операторов
+        operators = {
+            '37433': 'Ucom',      # Ucom mobile
+            '37443': 'Ucom',      # Ucom mobile
+            '37455': 'Ucom',      # Ucom mobile
+            '37477': 'Ucom',      # Ucom mobile
+            '37493': 'Ucom',      # Ucom mobile
+            '37494': 'Ucom',      # Ucom mobile
+            '37498': 'Ucom',      # Ucom mobile
+            '37499': 'Ucom',      # Ucom mobile
+            '37441': 'Team',      # Team Telecom
+            '37444': 'Team',      # Team Telecom
+            '37450': 'Viva-MTS',  # Viva-MTS
+            '37451': 'Viva-MTS',  # Viva-MTS
+            '37455': 'Viva-MTS',  # Viva-MTS
+            '37495': 'Viva-MTS',  # Viva-MTS
+            '37496': 'Viva-MTS',  # Viva-MTS
+            '37410': 'Корпоративные номера',
+            '37460': 'Федеральные номера'
+        }
+        
+        prefix = phone_number[:5]  # Полный код 374XX
+        operator = operators.get(prefix, 'Неизвестный армянский оператор')
+        
+        return {
+            'carrier': operator,
+            'line_type': 'mobile',
+            'valid': True,
+            'region': 'Армения'
+        }
+
+    def get_phone_geo_info(self, phone_number):
+        """Получение геолокации по номеру телефона"""
+        clean_number = re.sub(r'\D', '', phone_number)
+        
+        geo_info = {
+            'country': 'Не определено',
+            'region': 'Не определено',
+            'city': 'Не определено',
+            'timezone': 'Не определено'
+        }
+        
+        # Определение по коду страны
+        if clean_number.startswith('7'):
+            geo_info.update({
+                'country': 'Россия',
+                'region': 'Центральный регион',
+                'timezone': 'MSK'
+            })
+        elif clean_number.startswith('374'):
+            geo_info.update({
+                'country': 'Армения',
+                'region': 'Ереван',
+                'timezone': 'AMT'
+            })
+        elif clean_number.startswith('1'):
+            geo_info.update({
+                'country': 'США/Канада',
+                'timezone': 'EST'
+            })
+        
+        return geo_info
+
+    def find_phone_social_profiles(self, phone_number):
+        """Поиск профилей в социальных сетях по номеру телефона"""
+        social_profiles = []
+        clean_number = re.sub(r'\D', '', phone_number)
+        
+        platforms = {
+            'WhatsApp': f'https://wa.me/{clean_number}',
+            'Telegram': f'https://t.me/{clean_number}',
+            'Viber': f'viber://chat?number={clean_number}',
+        }
+        
+        def check_platform(platform, url):
+            try:
+                if platform == 'WhatsApp':
+                    response = self.session.head(url, timeout=5)
+                    if response.status_code == 200:
+                        social_profiles.append(f"{platform}: {url}")
+                elif platform == 'Telegram':
+                    # Для Telegram проверяем через API
+                    response = self.session.get(
+                        f'https://t.me/{clean_number}',
+                        timeout=5
+                    )
+                    if 'tgme_page_title' in response.text and 'Subscribe' not in response.text:
+                        social_profiles.append(f"{platform}: {url}")
+            except Exception as e:
+                pass
+        
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            for platform, url in platforms.items():
+                executor.submit(check_platform, platform, url)
+        
+        return social_profiles
+
+    def check_spam_databases(self, phone_number):
+        """Проверка номеров в базах спама и мошенников"""
+        clean_number = re.sub(r'\D', '', phone_number)
+        
+        spam_info = {
+            'spam_reports': 0,
+            'risk_level': 'низкий',
+            'sources_checked': ['Локальная база'],
+            'reputation': 'чистый'
+        }
+        
+        # Простая имитация проверки спама
+        spam_numbers = [
+            '74951234567',
+            '79031234567',
+            '79501234567'
+        ]
+        
+        if clean_number in spam_numbers:
+            spam_info.update({
+                'spam_reports': 5,
+                'risk_level': 'высокий',
+                'reputation': 'потенциальный спам'
+            })
+        
+        return spam_info
+
+    def search_public_records(self, phone_number):
+        """Поиск в открытых базах данных"""
+        public_records = {
+            'data_sources': [],
+            'found_records': [],
+            'warnings': []
+        }
+        
+        clean_number = re.sub(r'\D', '', phone_number)
+        
+        try:
+            # Поиск в Google (осторожно - может быть блокировка)
+            search_query = f'"{clean_number}" OR "{phone_number}"'
+            response = self.session.get(
+                'https://www.google.com/search',
+                params={'q': search_query},
+                timeout=10
+            )
+            
+            if response.status_code == 200:
+                public_records['data_sources'].append('Google Search')
+                
+                # Простой анализ результатов
+                soup = BeautifulSoup(response.text, 'html.parser')
+                results = soup.find_all('h3')[:5]  # Первые 5 результатов
+                
+                for result in results:
+                    link = result.find_parent('a')
+                    if link and link.get('href'):
+                        public_records['found_records'].append({
+                            'title': result.get_text(),
+                            'url': link.get('href')
+                        })
+        
+        except Exception as e:
+            public_records['warnings'].append(f'Ошибка поиска: {str(e)}')
+        
+        return public_records
+
     def get_mx_records(self, domain):
         """Получение MX записей для домена"""
         try:
@@ -480,6 +808,8 @@ class CyberInvestigator:
                 filename = f"ip_report_{results['ip']}_{timestamp}.json"
             elif 'email' in results:
                 filename = f"email_report_{results['email'].replace('@', '_at_')}_{timestamp}.json"
+            elif 'phone' in results:
+                filename = f"phone_report_{results['phone']}_{timestamp}.json"
             else:
                 filename = f"osint_report_{timestamp}.json"
         
@@ -501,6 +831,8 @@ class CyberInvestigator:
             self._print_ip_results(results)
         elif 'email' in results:
             self._print_email_results(results)
+        elif 'phone' in results:
+            self._print_phone_results(results)
 
     def _print_domain_results(self, results):
         """Вывод результатов по домену"""
@@ -608,11 +940,55 @@ class CyberInvestigator:
             if results['domain_info']['mx_records']:
                 print(f"   • MX записи: {', '.join(results['domain_info']['mx_records'][:3])}")
 
+    def _print_phone_results(self, results):
+        """Вывод результатов по телефонному номеру"""
+        print(f"\n📞 ТЕЛЕФОН: {results['phone']}")
+        print("-" * 40)
+        
+        if results['carrier_info']:
+            carrier = results['carrier_info']
+            print("\n🏢 Информация об операторе:")
+            print(f"   • Страна: {carrier.get('country', 'Не определено')}")
+            print(f"   • Оператор: {carrier.get('carrier', 'Не определено')}")
+            print(f"   • Тип линии: {carrier.get('line_type', 'Не определено')}")
+            print(f"   • Валидность: {'Да' if carrier.get('valid') else 'Нет'}")
+        
+        if results['geo_info']:
+            geo = results['geo_info']
+            print("\n🗺️ Геолокация:")
+            for key, value in geo.items():
+                if value and value != 'Не определено':
+                    print(f"   • {key}: {value}")
+        
+        if results['social_profiles']:
+            print(f"\n👥 Социальные профили ({len(results['social_profiles'])}):")
+            for profile in results['social_profiles']:
+                print(f"   • {profile}")
+        
+        if results.get('spam_info'):
+            spam = results['spam_info']
+            print(f"\n⚠️ Информация о спаме:")
+            print(f"   • Уровень риска: {spam.get('risk_level', 'неизвестно')}")
+            print(f"   • Жалоб: {spam.get('spam_reports', 0)}")
+            print(f"   • Репутация: {spam.get('reputation', 'неизвестно')}")
+        
+        if results.get('public_records') and results['public_records'].get('found_records'):
+            records = results['public_records']
+            print(f"\n🔍 Найдено в открытых источниках ({len(records['found_records'])}):")
+            for record in records['found_records'][:3]:
+                print(f"   • {record.get('title', 'Без названия')}")
+        
+        if results.get('warnings'):
+            print(f"\n⚠️ Предупреждения:")
+            for warning in results['warnings']:
+                print(f"   • {warning}")
+
 def main():
     parser = argparse.ArgumentParser(description='CyberInvestigator - Мощный OSINT инструмент')
     parser.add_argument('-d', '--domain', help='Исследовать домен')
     parser.add_argument('-i', '--ip', help='Исследовать IP адрес')
     parser.add_argument('-e', '--email', help='Исследовать email адрес')
+    parser.add_argument('-p', '--phone', help='Исследовать телефонный номер')
     parser.add_argument('-o', '--output', help='Файл для сохранения отчета')
     parser.add_argument('--shodan', help='Shodan API ключ')
     
@@ -621,7 +997,7 @@ def main():
     investigator = CyberInvestigator(shodan_api_key=args.shodan)
     investigator.banner()
     
-    if not any([args.domain, args.ip, args.email]):
+    if not any([args.domain, args.ip, args.email, args.phone]):
         parser.print_help()
         return
     
@@ -632,6 +1008,8 @@ def main():
             results = investigator.ip_investigation(args.ip)
         elif args.email:
             results = investigator.email_investigation(args.email)
+        elif args.phone:
+            results = investigator.phone_investigation(args.phone)
         
         investigator.print_results(results)
         
